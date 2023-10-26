@@ -30,11 +30,6 @@ class SnafuGame extends FlameGame
   }
 
   @override
-  void onTap() {
-    super.onTap();
-  }
-
-  @override
   void onVerticalDragUpdate(DragUpdateInfo info) {
     if (player.direction == Direction.north ||
         player.direction == Direction.south) return;
@@ -61,11 +56,6 @@ class SnafuGame extends FlameGame
     screenSize = size;
     super.onGameResize(size);
   }
-
-  @override
-  void render(Canvas canvas) {
-    super.render(canvas);
-  }
 }
 
 class Board extends PositionComponent with HasGameRef<SnafuGame> {
@@ -89,15 +79,22 @@ class Board extends PositionComponent with HasGameRef<SnafuGame> {
   }
 
   bool offBoundsOrOccupied(Coordinate index) {
-    if (index.x > _numberOfColumns ||
-        index.y > _numberOfLines ||
-        index.x < -1 ||
-        index.y < -1) return true;
+    if (index.x >= _numberOfColumns ||
+        index.y >= _numberOfLines ||
+        index.x < 0 ||
+        index.y < 0) return true;
     if (paintedCells.containsKey(index)) return true;
     for (SnakeComponent player in players) {
       if (player.boardCellIndex == index) return true;
     }
     return false;
+  }
+
+  bool sideOfBoard(Coordinate index) {
+    return (index.x == _numberOfColumns - 1 ||
+        index.y == _numberOfLines - 1 ||
+        index.x == 0 ||
+        index.y == 0);
   }
 
   @override
@@ -201,7 +198,7 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
     final candidateDirections = nextPossibleDirections();
     if (candidateDirections.isEmpty) return;
     if (candidateDirections.contains(direction)) {
-      if (Random().nextInt(100) < 50) {
+      if (Random().nextInt(100) < 90) {
         return;
       }
     }
@@ -243,7 +240,9 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
       final delta = deltaCoordinateIn(candidateDirection);
       final candidateCoordinate =
           (x: currentIndex.x + delta.x, y: currentIndex.y + delta.y);
-      if (!gameRef.board.offBoundsOrOccupied(candidateCoordinate)) {
+
+      if (!gameRef.board.offBoundsOrOccupied(candidateCoordinate) &&
+          !gameRef.board.sideOfBoard(candidateCoordinate)) {
         answer.add(candidateDirection);
       }
     }

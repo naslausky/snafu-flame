@@ -10,7 +10,34 @@ import 'package:flutter/material.dart';
 
 void main() {
   runApp(
-    SafeArea(child: GameWidget(game: SnafuGame())),
+    SafeArea(
+      child: GameWidget<SnafuGame>(
+        game: SnafuGame(),
+        overlayBuilderMap: {
+          'endgame_screen': (context, game) {
+            return Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.brown,
+                  border: Border.all(),
+                  borderRadius: const BorderRadius.all(Radius.circular(5)),
+                ),
+                padding: const EdgeInsets.all(10),
+                child: const Text(
+                  '🔥🔥🔥Game over!🔥🔥🔥\n'
+                  "No need to worry! Flame's game is only starting.\n"
+                  'Happy 6th anniversary, Flame engine! \n 🔥🔥🔥🔥🔥🔥🔥',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.yellow,
+                  ),
+                ),
+              ),
+            );
+          },
+        },
+      ),
+    ),
   );
 }
 
@@ -62,7 +89,20 @@ class SnafuGame extends FlameGame
 
   @override
   void onTap() {
-    player.turbo();
+    paused ? paused = false : player.turbo();
+  }
+
+  @override
+  void update(double dt) {
+    if (player.died ||
+        !board.players
+            .where((player) => player.ai)
+            .toList()
+            .any((player) => !player.died)) {
+      overlays.add('endgame_screen');
+      paused = true;
+    }
+    super.update(dt);
   }
 }
 

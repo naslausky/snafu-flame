@@ -1,6 +1,8 @@
+import 'dart:async';
+import 'dart:core';
 import 'dart:math';
 
-import 'package:flame/components.dart';
+import 'package:flame/components.dart' hide Timer;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flame/input.dart';
@@ -17,9 +19,12 @@ enum Direction { north, west, east, south }
 typedef Coordinate = ({int x, int y});
 
 class SnafuGame extends FlameGame
-    with TapDetector, HorizontalDragDetector, VerticalDragDetector {
+    with
+        TapDetector,
+        HorizontalDragDetector,
+        VerticalDragDetector,
+        TapDetector {
   static const movementTickDuration = 1;
-  late Vector2 screenSize;
   Board board = Board();
   SnakeComponent get player =>
       board.players.firstWhere((player) => player.isAI == false);
@@ -35,7 +40,6 @@ class SnafuGame extends FlameGame
         player.direction == Direction.south) {
       return;
     }
-
     if (info.delta.global.y > 0) {
       player.nextDirection = Direction.south;
     } else {
@@ -57,20 +61,19 @@ class SnafuGame extends FlameGame
   }
 
   @override
-  void onGameResize(Vector2 size) {
-    screenSize = size;
-    super.onGameResize(size);
+  void onTap() {
+    player.turbo();
   }
 }
 
 class Board extends PositionComponent with HasGameRef<SnafuGame> {
   static const int _numberOfLines = 40;
   static const int _numberOfColumns = 20;
-  static final Paint _backgroundColor = Paint()..color = Colors.yellow;
-  static final Paint _gridColor = Paint()..color = Colors.black;
+  static const double _padding = 10;
+  static final Paint _borderColor = Paint()..color = Colors.orange;
+  static final Paint _backgroundColor = Paint()..color = Colors.blueGrey;
   Vector2 get cellSize =>
       Vector2(width / _numberOfColumns, height / _numberOfLines);
-  Map<Coordinate, Color> paintedCells = {};
 
   List<SnakeComponent> players = [
     SnakeComponent(Colors.red, (x: 5, y: 10), Direction.south),
@@ -79,8 +82,11 @@ class Board extends PositionComponent with HasGameRef<SnafuGame> {
     SnakeComponent(Colors.purple, (x: 15, y: 30), Direction.west, isAI: true),
   ];
 
-  Vector2 positionOfCell({required Coordinate index}) {
-    return Vector2(index.x * cellSize.x, index.y * cellSize.y);
+  Vector2 positionOfCenterOfCell({required Coordinate index}) {
+    return Vector2(
+      index.x * cellSize.x + cellSize.x / 2,
+      index.y * cellSize.y + cellSize.y / 2,
+    );
   }
 
   bool offBoundsOrOccupied(Coordinate index) {
@@ -90,67 +96,39 @@ class Board extends PositionComponent with HasGameRef<SnafuGame> {
         index.y < 0) {
       return true;
     }
-    if (paintedCells.containsKey(index)) {
-      return true;
-    }
     for (final player in players) {
-      if (player.boardCellIndex == index) {
+      if (player.trail.contains(index) || player.boardCellIndex == index) {
         return true;
       }
     }
     return false;
   }
 
-  bool sideOfBoard(Coordinate index) {
-    return index.x == _numberOfColumns - 1 ||
-        index.y == _numberOfLines - 1 ||
-        index.x == 0 ||
-        index.y == 0;
-  }
-
   @override
   Future<void> onLoad() async {
-    size = Vector2(gameRef.screenSize.x, gameRef.screenSize.y);
-    position = Vector2(0, 0);
+    size =
+        Vector2(gameRef.size.x - 2 * _padding, gameRef.size.y - 2 * _padding);
+    position = Vector2(_padding, _padding);
     players.forEach(add);
   }
 
   @override
   void render(Canvas canvas) {
     final background = Rect.fromLTWH(0, 0, width, height);
+    canvas.drawRect(background.inflate(5), _borderColor);
     canvas.drawRect(background, _backgroundColor);
-    for (var lineIndex = 0; lineIndex <= _numberOfLines; lineIndex++) {
-      final lineY = (lineIndex / _numberOfLines) * height;
-      canvas.drawLine(Offset(0, lineY), Offset(width, lineY), _gridColor);
-    }
-    for (var columnIndex = 0; columnIndex <= _numberOfColumns; columnIndex++) {
-      final lineX = (columnIndex / _numberOfColumns) * width;
-      canvas.drawLine(Offset(lineX, 0), Offset(lineX, height), _gridColor);
-    }
 
-    for (final snake in players) {
-      if (!snake.died) {
-        final coordinate = snake.boardCellIndex;
+    for (final player in players) {
+      for (final coordinate in player.trail) {
         final rect = Rect.fromLTWH(
           coordinate.x * cellSize.x,
           coordinate.y * cellSize.y,
           cellSize.x,
           cellSize.y,
         );
-        canvas.drawRect(rect, Paint()..color = snake.color);
+        canvas.drawRect(rect, Paint()..color = player.color);
       }
     }
-
-    paintedCells.forEach((Coordinate coordinate, Color color) {
-      final rect = Rect.fromLTWH(
-        coordinate.x * cellSize.x,
-        coordinate.y * cellSize.y,
-        cellSize.x,
-        cellSize.y,
-      );
-      canvas.drawRect(rect, Paint()..color = color);
-    });
-
     super.render(canvas);
   }
 }
@@ -163,7 +141,10 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   double timeSinceLastMovement = 0;
   bool died = false;
   bool isAI;
-  final double _velocity = 4;
+  static const _slowSpeed = 2.0;
+  static const _fastSpeed = 4.0;
+  double _velocity = _slowSpeed;
+  Set<Coordinate> trail = <Coordinate>{};
 
   SnakeComponent(
     this.color,
@@ -173,7 +154,17 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   }) : nextDirection = direction;
 
   void updatePosition() {
-    position = gameRef.board.positionOfCell(index: boardCellIndex);
+    position = gameRef.board.positionOfCenterOfCell(index: boardCellIndex);
+  }
+
+  void turbo() {
+    _velocity = _fastSpeed;
+    Timer(
+        const Duration(
+          seconds: 4,
+        ), () {
+      _velocity = _slowSpeed;
+    });
   }
 
   Direction leftDirection() {
@@ -215,7 +206,9 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
         return;
       }
     }
-    candidateDirections.remove(direction);
+    if (candidateDirections.length > 1) {
+      candidateDirections.remove(direction);
+    }
     nextDirection =
         candidateDirections[Random().nextInt(candidateDirections.length)];
   }
@@ -244,18 +237,13 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
       leftDirection(),
       rightDirection(),
     ];
-    final currentDirectionDelta = deltaNextCoordinate();
-    final currentIndex = (
-      x: boardCellIndex.x + currentDirectionDelta.x,
-      y: boardCellIndex.y + currentDirectionDelta.y
-    );
+    final currentIndex = boardCellIndex;
     for (final candidateDirection in possibleDirections) {
       final delta = deltaCoordinateIn(candidateDirection);
       final candidateCoordinate =
           (x: currentIndex.x + delta.x, y: currentIndex.y + delta.y);
 
-      if (!gameRef.board.offBoundsOrOccupied(candidateCoordinate) &&
-          !gameRef.board.sideOfBoard(candidateCoordinate)) {
+      if (!gameRef.board.offBoundsOrOccupied(candidateCoordinate)) {
         answer.add(candidateDirection);
       }
     }
@@ -265,40 +253,43 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   @override
   Future<void> onLoad() async {
     size = gameRef.board.cellSize;
-    gameRef.board.paintedCells[boardCellIndex] = color;
+    trail.add(boardCellIndex);
     updatePosition();
-    anchor = Anchor.topLeft;
+    anchor = Anchor.center;
   }
 
   @override
   void render(Canvas canvas) {
-    if (!died) {
-      final cell = Rect.fromLTWH(0, 0, width, height);
-      canvas.drawRect(cell, Paint()..color = color);
-    }
+    final cell = Rect.fromLTWH(0, 0, width, height);
+    canvas.drawRect(cell, Paint()..color = Colors.black);
+    canvas.drawRect(cell.deflate(1), Paint()..color = color);
     super.render(canvas);
   }
 
   @override
   void update(double dt) {
-    if (died) {
-      return;
-    }
     timeSinceLastMovement += dt;
     final timeBetweenCells = SnafuGame.movementTickDuration / _velocity;
     if (timeSinceLastMovement > timeBetweenCells) {
       timeSinceLastMovement -= timeBetweenCells;
-      gameRef.board.paintedCells[boardCellIndex] = color;
-      changeCellIfAI();
       final delta = deltaNextCoordinate();
       boardCellIndex =
           (x: boardCellIndex.x + delta.x, y: boardCellIndex.y + delta.y);
+      trail.add(boardCellIndex);
+      changeCellIfAI();
       direction = nextDirection;
+
+      final deltaNextCell = deltaNextCoordinate();
       died = gameRef.board.offBoundsOrOccupied(
-        (x: boardCellIndex.x + delta.x, y: boardCellIndex.y + delta.y),
+        (
+          x: boardCellIndex.x + deltaNextCell.x,
+          y: boardCellIndex.y + deltaNextCell.y,
+        ),
       );
+
       if (died) {
-        gameRef.board.paintedCells.removeWhere((key, value) => value == color);
+        trail = <Coordinate>{};
+        gameRef.board.remove(this);
       }
     }
     final delta = deltaNextCoordinate();

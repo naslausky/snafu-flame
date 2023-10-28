@@ -1,6 +1,6 @@
 # snafu
 
-Snafu replica for Flame 6th anniversary.
+[Snafu](https://www.youtube.com/watch?v=tCmEcc4c1tk) starting replica for Flame's 6th anniversary.
 
 ## Getting Started
 

@@ -67,11 +67,8 @@ class SnafuGame extends FlameGame
         player.direction == Direction.south) {
       return;
     }
-    if (info.delta.global.y > 0) {
-      player.nextDirection = Direction.south;
-    } else {
-      player.nextDirection = Direction.north;
-    }
+    player.nextDirection =
+        info.delta.global.y > 0 ? Direction.south : Direction.north;
   }
 
   @override
@@ -80,11 +77,9 @@ class SnafuGame extends FlameGame
         player.direction == Direction.east) {
       return;
     }
-    if (info.delta.global.x > 0) {
-      player.nextDirection = Direction.east;
-    } else {
-      player.nextDirection = Direction.west;
-    }
+
+    player.nextDirection =
+        info.delta.global.x > 0 ? Direction.east : Direction.west;
   }
 
   @override
@@ -299,8 +294,15 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   @override
   void render(Canvas canvas) {
     final cell = Rect.fromLTWH(0, 0, width, height);
-    canvas.drawRect(cell, Paint()..color = Colors.black);
-    canvas.drawRect(cell.deflate(1), Paint()..color = color);
+    canvas.drawRect(cell, Paint()..color = color);
+    final d = deltaNextCoordinate();
+    canvas.drawArc(
+      cell,
+      atan(d.y / d.x) - pi / 3 - (d.x < 0 ? pi : 0),
+      2 * pi / 3,
+      true,
+      Paint()..color = Colors.black,
+    );
     super.render(canvas);
   }
 

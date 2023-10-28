@@ -16,7 +16,7 @@ void main() {
 
 enum Direction { north, west, east, south }
 
-typedef Coordinate = ({int x, int y});
+typedef Coordinate = Point<int>;
 
 class SnafuGame extends FlameGame
     with
@@ -27,7 +27,7 @@ class SnafuGame extends FlameGame
   static const movementTickDuration = 1;
   Board board = Board();
   SnakeComponent get player =>
-      board.players.firstWhere((player) => player.isAI == false);
+      board.players.firstWhere((player) => player.ai == false);
 
   @override
   Future<void> onLoad() async {
@@ -76,10 +76,10 @@ class Board extends PositionComponent with HasGameRef<SnafuGame> {
       Vector2(width / _numberOfColumns, height / _numberOfLines);
 
   List<SnakeComponent> players = [
-    SnakeComponent(Colors.red, (x: 5, y: 10), Direction.south),
-    SnakeComponent(Colors.green, (x: 5, y: 30), Direction.north, isAI: true),
-    SnakeComponent(Colors.blue, (x: 15, y: 10), Direction.east, isAI: true),
-    SnakeComponent(Colors.purple, (x: 15, y: 30), Direction.west, isAI: true),
+    SnakeComponent(Colors.red, const Point(5, 10), Direction.south),
+    SnakeComponent(Colors.green, const Point(5, 30), Direction.north, ai: true),
+    SnakeComponent(Colors.blue, const Point(15, 10), Direction.east, ai: true),
+    SnakeComponent(Colors.pink, const Point(15, 30), Direction.west, ai: true),
   ];
 
   Vector2 positionOfCenterOfCell({required Coordinate index}) {
@@ -106,8 +106,7 @@ class Board extends PositionComponent with HasGameRef<SnafuGame> {
 
   @override
   Future<void> onLoad() async {
-    size =
-        Vector2(gameRef.size.x - 2 * _padding, gameRef.size.y - 2 * _padding);
+    size = gameRef.size - Vector2.all(2 * _padding);
     position = Vector2(_padding, _padding);
     players.forEach(add);
   }
@@ -140,7 +139,7 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   Direction nextDirection;
   double timeSinceLastMovement = 0;
   bool died = false;
-  bool isAI;
+  bool ai;
   static const _slowSpeed = 2.0;
   static const _fastSpeed = 4.0;
   double _velocity = _slowSpeed;
@@ -150,7 +149,7 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
     this.color,
     this.boardCellIndex,
     this.direction, {
-    this.isAI = false,
+    this.ai = false,
   }) : nextDirection = direction;
 
   void updatePosition() {
@@ -194,7 +193,7 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   }
 
   void changeCellIfAI() {
-    if (!isAI) {
+    if (!ai) {
       return;
     }
     final candidateDirections = nextPossibleDirections();
@@ -216,13 +215,13 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
   Coordinate deltaCoordinateIn(Direction direction) {
     switch (direction) {
       case Direction.north:
-        return (x: 0, y: -1);
+        return const Point(0, -1);
       case Direction.west:
-        return (x: -1, y: 0);
+        return const Point(-1, 0);
       case Direction.east:
-        return (x: 1, y: 0);
+        return const Point(1, 0);
       case Direction.south:
-        return (x: 0, y: 1);
+        return const Point(0, 1);
     }
   }
 
@@ -240,8 +239,7 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
     final currentIndex = boardCellIndex;
     for (final candidateDirection in possibleDirections) {
       final delta = deltaCoordinateIn(candidateDirection);
-      final candidateCoordinate =
-          (x: currentIndex.x + delta.x, y: currentIndex.y + delta.y);
+      final candidateCoordinate = currentIndex + delta;
 
       if (!gameRef.board.offBoundsOrOccupied(candidateCoordinate)) {
         answer.add(candidateDirection);
@@ -273,25 +271,18 @@ class SnakeComponent extends PositionComponent with HasGameRef<SnafuGame> {
     if (timeSinceLastMovement > timeBetweenCells) {
       timeSinceLastMovement -= timeBetweenCells;
       final delta = deltaNextCoordinate();
-      boardCellIndex =
-          (x: boardCellIndex.x + delta.x, y: boardCellIndex.y + delta.y);
+      boardCellIndex = boardCellIndex + delta;
       trail.add(boardCellIndex);
       changeCellIfAI();
       direction = nextDirection;
-
       final deltaNextCell = deltaNextCoordinate();
-      died = gameRef.board.offBoundsOrOccupied(
-        (
-          x: boardCellIndex.x + deltaNextCell.x,
-          y: boardCellIndex.y + deltaNextCell.y,
-        ),
-      );
-
+      died = gameRef.board.offBoundsOrOccupied(boardCellIndex + deltaNextCell);
       if (died) {
         trail = <Coordinate>{};
         gameRef.board.remove(this);
       }
     }
+
     final delta = deltaNextCoordinate();
     position.x += _velocity * size.x * delta.x * dt;
     position.y += _velocity * size.y * delta.y * dt;
